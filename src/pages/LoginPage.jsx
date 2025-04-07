@@ -1,10 +1,13 @@
-import React, { useState } from "react";
+import React, { useContext, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "../config/axios";
 import { toast } from "react-toastify";
+import { UserContext } from "../context/userContext";
 
 const LoginPage = () => {
   const navigate = useNavigate();
+
+  const { setUser } = useContext(UserContext);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -32,8 +35,9 @@ const LoginPage = () => {
         email,
         password,
       });
-      console.log(data);
 
+      localStorage.setItem("token", data.token);
+      setUser(data.user);
       await toast.success("User Login Successfully");
       navigate("/");
 

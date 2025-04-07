@@ -1,10 +1,13 @@
-import React, { useState } from "react";
+import React, { useContext, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "../config/axios";
 import { toast } from "react-toastify";
+import { UserContext } from "../context/userContext";
 
 const RegisterPage = () => {
   const navigate = useNavigate();
+
+  const { setUser } = useContext(UserContext);
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -34,8 +37,9 @@ const RegisterPage = () => {
         email,
         password,
       });
-      console.log(data);
 
+      localStorage.setItem("token", data.token);
+      setUser(data.user);
       await toast.success("User Register Successfully");
       navigate("/");
 
