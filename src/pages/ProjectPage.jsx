@@ -1,6 +1,11 @@
 import axios from "../config/axios";
 import React, { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
+import {
+  initializeSocket,
+  receiveMessage,
+  sendMessage,
+} from "../config/socket";
 
 const ProjectPage = () => {
   const location = useLocation();
@@ -43,8 +48,6 @@ const ProjectPage = () => {
     }
   };
 
-  console.log(project);
-
   const fetchAllUsers = async () => {
     try {
       const { data } = await axios.get("/users/all");
@@ -55,11 +58,11 @@ const ProjectPage = () => {
   };
 
   useEffect(() => {
+    initializeSocket();
+
     fetchAllUsers();
     fetchProjectData();
   }, []);
-
-  console.log(selectedUsers);
 
   return (
     <main className="w-full h-screen flex">
