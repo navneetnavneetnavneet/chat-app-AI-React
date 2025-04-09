@@ -1,6 +1,7 @@
 import axios from "../config/axios";
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
+import { UserContext } from "../context/userContext";
 import {
   initializeSocket,
   receiveMessage,
@@ -9,12 +10,17 @@ import {
 
 const ProjectPage = () => {
   const location = useLocation();
+  const messageBoxRef = useRef(null);
 
   const [isSidePannelOpen, setisSidePannelOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [users, setUsers] = useState([]);
   const [project, setProject] = useState(location.state);
+  const [messageInput, setMessageInput] = useState("");
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+
+  const { user } = useContext(UserContext);
 
   const handleSelectedUser = (userId) => {
     if (selectedUsers.indexOf(userId) !== -1) {
@@ -57,8 +63,81 @@ const ProjectPage = () => {
     }
   };
 
+  const appendIncomingMessage = (messageObject) => {
+    const messageBox = document.querySelector(".messageBox");
+    const message = document.createElement("div");
+    message.classList.add(
+      "max-w-72",
+      "w-fit",
+      "flex",
+      "flex-col",
+      "gap-1",
+      "bg-slate-300",
+      "px-4",
+      "py-2",
+      "rounded-md"
+    );
+    message.innerHTML = `<small className="leading-none text-xs font-medium text-gray-600 ">${messageObject.sender.email}</small>
+              <p className="leading-none text-sm font-normal"> ${messageObject.message}</p>`;
+
+    messageBox.appendChild(message);
+  };
+
+  const appendOutgoingMessage = (messageObject) => {
+    const messageBox = document.querySelector(".messageBox");
+    const message = document.createElement("div");
+    message.classList.add(
+      "ml-auto",
+      "max-w-72",
+      "w-fit",
+      "flex",
+      "flex-col",
+      "gap-1",
+      "bg-slate-200",
+      "px-4",
+      "py-2",
+      "rounded-md"
+    );
+    message.innerHTML = `<small className="leading-none text-xs font-medium text-gray-600 ">${messageObject.sender.email}</small>
+              <p className="leading-none text-sm font-normal"> ${messageObject.message}</p>`;
+
+    messageBox.appendChild(message);
+  };
+
+  const scrollToBottom = () => {
+    const messageBox = document.querySelector(".messageBox");
+    messageBox.scrollTo({
+      top: messageBox.scrollHeight,
+      behavior: "smooth",
+    });
+    const { scrollTop, scrollHeight, clientHeight } = messageBoxRef.current;
+    setShowScrollToBottom(scrollTop + clientHeight < scrollHeight - 50);
+  };
+
+  const send = () => {
+    sendMessage("project-message", {
+      message: messageInput,
+      sender: user,
+    });
+
+    appendOutgoingMessage({
+      message: messageInput,
+      sender: user,
+    });
+
+    scrollToBottom();
+
+    setMessageInput("");
+  };
+
   useEffect(() => {
-    initializeSocket();
+    initializeSocket(project._id);
+
+    receiveMessage("project-message", (data) => {
+      console.log(data);
+      appendIncomingMessage(data);
+      scrollToBottom();
+    });
 
     fetchAllUsers();
     fetchProjectData();
@@ -83,9 +162,13 @@ const ProjectPage = () => {
           </button>
         </header>
 
-        <div className="conversationArea w-full flex flex-col flex-grow px-2 py-2">
-          <div className="messageBox w-full flex flex-col gap-2 flex-grow">
-            <div className="message max-w-72 w-fit flex flex-col gap-1 bg-slate-300 px-4 py-2 rounded-md">
+        <div className="conversationArea h-[60vh] relative w-full flex flex-col flex-grow px-2 py-2">
+          <div
+            ref={messageBoxRef}
+            className="messageBox relative h-[82vh] overflow-y-auto overflow-x-hidden w-full flex flex-col gap-2"
+          >
+            {/* Incomming message */}
+            {/* <div className="message max-w-72 w-fit flex flex-col gap-1 bg-slate-300 px-4 py-2 rounded-md">
               <small className="leading-none text-xs font-medium text-gray-600 ">
                 example@gail.com
               </small>
@@ -93,24 +176,37 @@ const ProjectPage = () => {
                 Lorem ipsum dolor sit amet. Lorem iopsum dolor sit amet.Lorem
                 ipsum dolor sit amet.
               </p>
-            </div>
-            <div className="message ml-auto max-w-72 w-fit flex flex-col gap-1 bg-slate-200 px-4 py-2 rounded-md">
+            </div> */}
+
+            {/* Outgoing Message */}
+            {/* <div className="message ml-auto max-w-72 w-fit flex flex-col gap-1 bg-slate-200 px-4 py-2 rounded-md">
               <small className="leading-none text-xs font-medium text-gray-600 ">
                 example@gail.com
               </small>
               <p className="leading-none text-sm font-normal">
                 Lorem ipsum dolor sit amet.
               </p>
-            </div>
+            </div> */}
           </div>
 
-          <div className="messageInput w-full flex shrink-0 items-center gap-1 text-base font-medium px-2 py-2 bg-white border border-gray-400 rounded-full">
+          {showScrollToBottom && (
+            <div onClick={scrollToBottom} className="absolute bottom-20 left-1/2 rounded-full shadow-lg">
+              <i className="ri-arrow-down-s-line"></i>
+            </div>
+          )}
+
+          <div className="messageInput mt-2 w-full flex shrink-0 items-center gap-1 text-base font-medium px-2 py-2 bg-white border border-gray-400 rounded-full">
             <input
+              onChange={(e) => setMessageInput(e.target.value)}
+              value={messageInput}
               type="text"
               placeholder="Enter message . . ."
               className="w-full px-2 py-1 bg-transparent border-none outline-none"
             />
-            <button className="px-6 py-1 rounded-full cursor-pointer text-white bg-sky-400">
+            <button
+              onClick={send}
+              className="px-6 py-1 rounded-full cursor-pointer text-white bg-sky-400"
+            >
               <i className="ri-send-plane-fill text-xl"></i>
             </button>
           </div>
