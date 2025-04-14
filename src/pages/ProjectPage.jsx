@@ -7,6 +7,8 @@ import {
   receiveMessage,
   sendMessage,
 } from "../config/socket";
+import Markdown from "markdown-to-jsx";
+import hljs from "highlight.js";
 
 const ProjectPage = () => {
   const location = useLocation();
@@ -19,6 +21,10 @@ const ProjectPage = () => {
   const [project, setProject] = useState(location.state);
   const [messageInput, setMessageInput] = useState("");
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [fileTree, setFileTree] = useState({});
+  const [currentFile, setCurrentFile] = useState(null);
+  const [openFiles, setOpenFiles] = useState([]);
 
   const { user } = useContext(UserContext);
 
@@ -63,79 +69,48 @@ const ProjectPage = () => {
     }
   };
 
-  const appendIncomingMessage = (messageObject) => {
-    const messageBox = document.querySelector(".messageBox");
-    const message = document.createElement("div");
-    message.classList.add(
-      "max-w-72",
-      "w-fit",
-      "flex",
-      "flex-col",
-      "gap-1",
-      "bg-slate-300",
-      "px-4",
-      "py-2",
-      "rounded-md"
-    );
-    message.innerHTML = `<small className="leading-none text-xs font-medium text-gray-600 ">${messageObject.sender.email}</small>
-              <p className="leading-none text-sm font-normal"> ${messageObject.message}</p>`;
-
-    messageBox.appendChild(message);
-  };
-
-  const appendOutgoingMessage = (messageObject) => {
-    const messageBox = document.querySelector(".messageBox");
-    const message = document.createElement("div");
-    message.classList.add(
-      "ml-auto",
-      "max-w-72",
-      "w-fit",
-      "flex",
-      "flex-col",
-      "gap-1",
-      "bg-slate-200",
-      "px-4",
-      "py-2",
-      "rounded-md"
-    );
-    message.innerHTML = `<small className="leading-none text-xs font-medium text-gray-600 ">${messageObject.sender.email}</small>
-              <p className="leading-none text-sm font-normal"> ${messageObject.message}</p>`;
-
-    messageBox.appendChild(message);
-  };
-
   const scrollToBottom = () => {
     const messageBox = document.querySelector(".messageBox");
     messageBox.scrollTo({
       top: messageBox.scrollHeight,
       behavior: "smooth",
     });
-    const { scrollTop, scrollHeight, clientHeight } = messageBoxRef.current;
+    const { scrollTop, scrollHeight, clientHeight } = messageBoxRef?.current;
     setShowScrollToBottom(scrollTop + clientHeight < scrollHeight - 50);
   };
 
   const send = () => {
-    sendMessage("project-message", {
+    const messageObject = {
       message: messageInput,
       sender: user,
-    });
-
-    appendOutgoingMessage({
-      message: messageInput,
-      sender: user,
-    });
-
+    };
+    sendMessage("project-message", messageObject);
+    setMessages((prevMessages) => [...prevMessages, messageObject]);
     scrollToBottom();
-
     setMessageInput("");
+  };
+
+  const writeAiMessage = (message) => {
+    const messageObject = JSON.parse(message);
+
+    return (
+      <div className="bg-slate-950 text-white p-2 overflow-auto">
+        <Markdown>{messageObject.text}</Markdown>
+      </div>
+    );
   };
 
   useEffect(() => {
     initializeSocket(project._id);
 
     receiveMessage("project-message", (data) => {
-      console.log(data);
-      appendIncomingMessage(data);
+      const message = JSON.parse(data.message);
+
+      if (message.fileTree) {
+        setFileTree(message.fileTree);
+      }
+
+      setMessages((prevMessages) => [...prevMessages, data]);
       scrollToBottom();
     });
 
@@ -167,30 +142,32 @@ const ProjectPage = () => {
             ref={messageBoxRef}
             className="messageBox relative h-[82vh] overflow-y-auto overflow-x-hidden w-full flex flex-col gap-2"
           >
-            {/* Incomming message */}
-            {/* <div className="message max-w-72 w-fit flex flex-col gap-1 bg-slate-300 px-4 py-2 rounded-md">
-              <small className="leading-none text-xs font-medium text-gray-600 ">
-                example@gail.com
-              </small>
-              <p className="leading-none text-sm font-normal">
-                Lorem ipsum dolor sit amet. Lorem iopsum dolor sit amet.Lorem
-                ipsum dolor sit amet.
-              </p>
-            </div> */}
-
-            {/* Outgoing Message */}
-            {/* <div className="message ml-auto max-w-72 w-fit flex flex-col gap-1 bg-slate-200 px-4 py-2 rounded-md">
-              <small className="leading-none text-xs font-medium text-gray-600 ">
-                example@gail.com
-              </small>
-              <p className="leading-none text-sm font-normal">
-                Lorem ipsum dolor sit amet.
-              </p>
-            </div> */}
+            {messages.map((msg, index) => (
+              <div
+                key={index}
+                className={`message ${
+                  msg.sender._id === user._id
+                    ? "ml-auto max-w-64 bg-slate-200"
+                    : "bg-slate-300 max-w-80"
+                } w-fit flex flex-col gap-1 px-4 py-2 rounded-md`}
+              >
+                <small className="leading-none text-xs font-medium text-gray-600">
+                  {msg.sender.email}
+                </small>
+                <p className="leading-none text-sm font-normal rounded-md">
+                  {msg.sender._id === "ai"
+                    ? writeAiMessage(msg.message)
+                    : msg.message}
+                </p>
+              </div>
+            ))}
           </div>
 
           {showScrollToBottom && (
-            <div onClick={scrollToBottom} className="absolute bottom-20 left-1/2 rounded-full shadow-lg">
+            <div
+              onClick={scrollToBottom}
+              className="absolute bottom-20 left-1/2 rounded-full shadow-lg"
+            >
               <i className="ri-arrow-down-s-line"></i>
             </div>
           )}
@@ -240,6 +217,77 @@ const ProjectPage = () => {
               ))}
           </div>
         </div>
+      </section>
+
+      <section className="right flex flex-grow">
+        <div className="explorer w-60 h-full bg-slate-400">
+          <div className="file-tree flex flex-col gap-1">
+            {Object.keys(fileTree).map((file) => (
+              <div
+                onClick={() => {
+                  setCurrentFile(file);
+                  setOpenFiles([...new Set([...openFiles, file])]);
+                }}
+                className="file-tree-element w-full bg-slate-200 cursor-pointer px-4 py-2"
+              >
+                <p className="text-lg font-semibold">{file}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {currentFile && (
+          <div className="code-editor flex flex-col flex-grow bg-slate-900">
+            <div className="code-editor-top w-full bg-slate-700 text-white flex justify-start gap-1 items-center px-4 py-2">
+              {openFiles.map((file) => (
+                <button
+                  onClick={() => setCurrentFile(file)}
+                  className={`px-4 py-2 flex items-center gap-2 ${
+                    currentFile === file ? "bg-slate-900" : "bg-slate-800"
+                  }`}
+                >
+                  <p className="font-medium text-lg">{file}</p>
+                  <i className="ri-close-line cursor-pointer"></i>
+                </button>
+              ))}
+            </div>
+
+            <div className="code-editor-bottom w-full flex-grow">
+              {fileTree[currentFile] && (
+                <div className="code-editor-area w-full h-full overflow-auto flex-grow bg-slate-50 px-4 py-2">
+                  <pre className="hljs h-full">
+                    <code
+                      className="hljs h-full outline-none"
+                      contentEditable={true}
+                      suppressContentEditableWarning={true}
+                      onBlur={(e) => {
+                        const updatedContent = e.target.innerText;
+                        setFileTree((prevFileTree) => ({
+                          ...prevFileTree,
+                          [currentFile]: {
+                            ...prevFileTree[currentFile],
+                            content: updatedContent,
+                          },
+                        }));
+                      }}
+                      dangerouslySetInnerHTML={{
+                        __html: hljs.highlight(fileTree[currentFile].content, {
+                          language: "javascript",
+                          ignoreIllegals: true,
+                        }).value,
+                      }}
+                      style={{
+                        whiteSpace: "pre-wrap",
+                        paddingBottom: "25rem",
+                        counterSet: "line-numbering",
+                      }}
+                    ></code>
+                  </pre>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </section>
 
       {isModalOpen && (
