@@ -9,6 +9,7 @@ import {
 } from "../config/socket";
 import Markdown from "markdown-to-jsx";
 import hljs from "highlight.js";
+import { getWebContainer } from "../config/webContainer";
 
 const ProjectPage = () => {
   const location = useLocation();
@@ -25,6 +26,7 @@ const ProjectPage = () => {
   const [fileTree, setFileTree] = useState({});
   const [currentFile, setCurrentFile] = useState(null);
   const [openFiles, setOpenFiles] = useState([]);
+  const [webContainer, setWebContainer] = useState(null);
 
   const { user } = useContext(UserContext);
 
@@ -103,8 +105,16 @@ const ProjectPage = () => {
   useEffect(() => {
     initializeSocket(project._id);
 
+    if (!webContainer) {
+      getWebContainer().then((container) => {
+        setWebContainer(container);
+        console.log("web container started");
+      });
+    }
+
     receiveMessage("project-message", (data) => {
       const message = JSON.parse(data.message);
+      console.log(message);
 
       if (message.fileTree) {
         setFileTree(message.fileTree);
@@ -271,10 +281,13 @@ const ProjectPage = () => {
                         }));
                       }}
                       dangerouslySetInnerHTML={{
-                        __html: hljs.highlight(fileTree[currentFile].content, {
-                          language: "javascript",
-                          ignoreIllegals: true,
-                        }).value,
+                        __html: hljs.highlight(
+                          fileTree[currentFile].file.contents,
+                          {
+                            language: "javascript",
+                            ignoreIllegals: true,
+                          }
+                        ).value,
                       }}
                       style={{
                         whiteSpace: "pre-wrap",
