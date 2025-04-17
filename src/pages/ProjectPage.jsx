@@ -116,6 +116,8 @@ const ProjectPage = () => {
       const message = JSON.parse(data.message);
       console.log(message);
 
+      webContainer?.mount(message.fileTree)
+
       if (message.fileTree) {
         setFileTree(message.fileTree);
       }
